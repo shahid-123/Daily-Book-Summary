@@ -224,7 +224,7 @@ export const ReaderView: React.FC<Props> = ({
   const handleShare = () => {
     if (navigator.clipboard) {
       navigator.clipboard.writeText(
-        `Read "${currentSummary.title}" by ${currentSummary.author} on Shahid's BookPulse!\n"${currentSummary.hook}"`
+        `Read "${currentSummary.title}" by ${currentSummary.author} on AuraRead!\n"${currentSummary.hook}"`
       );
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2000);

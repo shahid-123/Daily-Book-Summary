@@ -221,7 +221,7 @@ export default function App() {
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="font-serif font-black tracking-tight text-lg text-white">
-                  Shahid's <span className="text-amber-400">BookPulse</span>
+                  Aura<span className="text-amber-400">Read</span>
                 </span>
                 <span className="rounded-full bg-amber-500/20 border border-amber-500/30 px-1.5 py-0.2 text-[9px] font-bold text-amber-400 uppercase tracking-widest hidden sm:inline">
                   Daily

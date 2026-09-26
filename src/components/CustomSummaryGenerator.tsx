@@ -193,7 +193,7 @@ Real success is not about working until you burn out. It is about working with f
             Produce A Motivational Summary of Your Choice
           </h2>
           <p className="text-slate-400 text-sm leading-relaxed">
-            Name any book from history or today’s bestseller list. Shahid's BookPulse will generate a full executive breakdown with core philosophy, actionable takeaways, real-life examples, and daily micro-habits.
+            Name any book from history or today’s bestseller list. AuraRead will generate a full executive breakdown with core philosophy, actionable takeaways, real-life examples, and daily micro-habits.
           </p>
         </div>
 

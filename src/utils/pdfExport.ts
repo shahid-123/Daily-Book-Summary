@@ -27,7 +27,7 @@ export function exportSummaryToPdf(summary: BookSummary): void {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(140, 140, 140);
-    doc.text("Shahid's BookPulse — Daily Motivational Book Summary", margin, 25);
+    doc.text('AuraRead — Daily Motivational Book Summary', margin, 25);
     
     const catText = (summary.category || 'SUMMARY').toUpperCase();
     doc.text(catText, pageWidth - margin, 25, { align: 'right' });
