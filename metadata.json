@@ -1,0 +1,6 @@
+{
+  "name": "AuraRead - Daily Motivational Book Summaries & 100-Book Challenge",
+  "description": "Daily motivational book summaries with fancy reading typography, AI context illustrations, real-life examples, multi-language speech, PDF export, custom AI book summaries, and 100-book yearly milestone tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
