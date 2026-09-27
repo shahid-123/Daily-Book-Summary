@@ -1,10 +1,8 @@
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const DATA_FILE = path.resolve(__dirname, 'community-data.json');
+const ROOT_DIR = process.cwd();
+const DATA_FILE = path.resolve(ROOT_DIR, 'community-data.json');
 
 export interface StoredComment {
   id: string;
@@ -111,7 +109,7 @@ export function getCommunityStats() {
 export function recordVisit(bookId?: string, isNewSession = false) {
   checkDailyRollover();
   communityData.totalVisits += 1;
-  if (isNewSession) {
+  if (isNewSession || communityData.todayVisits === 0) {
     communityData.todayVisits += 1;
   }
 
@@ -120,9 +118,16 @@ export function recordVisit(bookId?: string, isNewSession = false) {
   }
 
   saveData();
+
+  const totalLikes = Object.values(communityData.bookLikes).reduce((a, b) => a + b, 0);
+  const totalComments = communityData.comments.length;
+
   return {
     totalVisits: communityData.totalVisits,
     todayVisits: communityData.todayVisits,
+    totalLikes,
+    totalComments,
+    activeReadersCount: communityData.todayVisits,
     bookVisits: bookId ? communityData.bookVisits[bookId] : undefined,
   };
 }

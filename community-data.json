@@ -1,8 +1,10 @@
 {
-  "totalVisits": 0,
-  "todayVisits": 0,
+  "totalVisits": 5,
+  "todayVisits": 1,
   "lastDateStr": "2026-09-27",
-  "bookVisits": {},
+  "bookVisits": {
+    "atomic-habits": 2
+  },
   "bookLikes": {},
   "userBookLikes": {},
   "comments": []

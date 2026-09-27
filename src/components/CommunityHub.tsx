@@ -7,6 +7,7 @@ import {
   getUserName,
   setUserName,
   postBookComment,
+  getLocalCommunityStats,
 } from '../utils/communityApi';
 import { CURATED_BOOKS } from '../data/dailyBooks';
 import {
@@ -32,15 +33,9 @@ interface Props {
 }
 
 export const CommunityHub: React.FC<Props> = ({ onOpenBook }) => {
-  const [stats, setStats] = useState<CommunityOverviewStats>({
-    totalVisits: 0,
-    todayVisits: 0,
-    totalLikes: 0,
-    totalComments: 0,
-    activeReadersCount: 0,
-  });
+  const [stats, setStats] = useState<CommunityOverviewStats>(() => getLocalCommunityStats());
   const [recentComments, setRecentComments] = useState<CommentItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Quick Reflection Form
   const [authorName, setAuthorName] = useState(getUserName());

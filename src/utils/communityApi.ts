@@ -3,6 +3,7 @@ import { BookCommunityData, CommentItem, CommunityOverviewStats, CommentTag } fr
 const USER_ID_KEY = 'pulse_reader_user_id';
 const USER_NAME_KEY = 'pulse_reader_display_name';
 const VISITED_SESSION_KEY = 'pulse_visited_session';
+const STATS_CACHE_KEY = 'pulse_community_stats_cache';
 
 export function getUserId(): string {
   try {
@@ -33,36 +34,59 @@ export function setUserName(name: string): void {
   }
 }
 
+export function getLocalCommunityStats(): CommunityOverviewStats {
+  try {
+    const raw = localStorage.getItem(STATS_CACHE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (typeof parsed.totalVisits === 'number' && parsed.totalVisits > 0) {
+        return parsed;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return {
+    totalVisits: 1,
+    todayVisits: 1,
+    totalLikes: 0,
+    totalComments: 0,
+    activeReadersCount: 1,
+  };
+}
+
+export function saveLocalCommunityStats(stats: CommunityOverviewStats): void {
+  try {
+    localStorage.setItem(STATS_CACHE_KEY, JSON.stringify(stats));
+  } catch {
+    // ignore
+  }
+}
+
 // Global community stats
 export async function fetchCommunityStats(): Promise<CommunityOverviewStats> {
   try {
     const res = await fetch('/api/community/stats');
     if (res.ok) {
       const data = await res.json();
+      saveLocalCommunityStats(data);
       return data;
     }
   } catch (err) {
     console.warn('Failed to fetch community stats from server, using fallback', err);
   }
 
-  // Graceful fallback
-  return {
-    totalVisits: 0,
-    todayVisits: 0,
-    totalLikes: 0,
-    totalComments: 0,
-    activeReadersCount: 0,
-  };
+  return getLocalCommunityStats();
 }
 
 // Record a page or book visit
-export async function recordVisit(bookId?: string): Promise<{ totalVisits: number; bookVisits?: number }> {
-  try {
-    const isNewSession = !sessionStorage.getItem(VISITED_SESSION_KEY);
-    if (isNewSession) {
-      sessionStorage.setItem(VISITED_SESSION_KEY, 'true');
-    }
+export async function recordVisit(bookId?: string): Promise<CommunityOverviewStats & { bookVisits?: number }> {
+  const isNewSession = !sessionStorage.getItem(VISITED_SESSION_KEY);
+  if (isNewSession) {
+    sessionStorage.setItem(VISITED_SESSION_KEY, 'true');
+  }
 
+  try {
     const res = await fetch('/api/community/visit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -74,12 +98,30 @@ export async function recordVisit(bookId?: string): Promise<{ totalVisits: numbe
     });
 
     if (res.ok) {
-      return await res.json();
+      const data = await res.json();
+      const updated: CommunityOverviewStats = {
+        totalVisits: typeof data.totalVisits === 'number' ? data.totalVisits : 1,
+        todayVisits: typeof data.todayVisits === 'number' ? data.todayVisits : 1,
+        totalLikes: data.totalLikes ?? 0,
+        totalComments: data.totalComments ?? 0,
+        activeReadersCount: data.activeReadersCount ?? data.todayVisits ?? 1,
+      };
+      saveLocalCommunityStats(updated);
+      return { ...updated, bookVisits: data.bookVisits };
     }
   } catch (err) {
-    console.warn('Failed to record visit', err);
+    console.warn('Failed to record visit on server, using local fallback', err);
   }
-  return { totalVisits: 0 };
+
+  const local = getLocalCommunityStats();
+  const next: CommunityOverviewStats = {
+    ...local,
+    totalVisits: Math.max(1, local.totalVisits + (isNewSession ? 1 : 0)),
+    todayVisits: Math.max(1, local.todayVisits + (isNewSession ? 1 : 0)),
+    activeReadersCount: Math.max(1, local.activeReadersCount),
+  };
+  saveLocalCommunityStats(next);
+  return next;
 }
 
 // Fetch community data for a specific book

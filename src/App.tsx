@@ -21,7 +21,7 @@ import { PWAInstallButton } from './components/PWAInstallButton';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { CommunityHub } from './components/CommunityHub';
 import { exportSummaryToPdf } from './utils/pdfExport';
-import { recordVisit, fetchCommunityStats, fetchBookCommunityData } from './utils/communityApi';
+import { recordVisit, fetchCommunityStats, fetchBookCommunityData, getLocalCommunityStats } from './utils/communityApi';
 import {
   BookOpen,
   Sparkles,
@@ -57,27 +57,22 @@ export default function App() {
   const [progress, setProgress] = useState(loadProgress());
   const [offlineCache, setOfflineCache] = useState<Record<string, BookSummary>>(loadOfflineBooks());
   const [activeBookForReader, setActiveBookForReader] = useState<BookSummary | null>(null);
+  const [pendingPrefillBook, setPendingPrefillBook] = useState<{ title: string; author: string } | null>(null);
 
-  // Community and Visitor Stats - starts at genuine count
-  const [communityStats, setCommunityStats] = useState<CommunityOverviewStats>({
-    totalVisits: 0,
-    todayVisits: 0,
-    totalLikes: 0,
-    totalComments: 0,
-    activeReadersCount: 0,
-  });
+  // Community and Visitor Stats - starts with local genuine count so it displays instantly on load
+  const [communityStats, setCommunityStats] = useState<CommunityOverviewStats>(() => getLocalCommunityStats());
   const [dailyBookCommunity, setDailyBookCommunity] = useState<BookCommunityData | null>(null);
 
   // Record visit & fetch global stats on mount
   useEffect(() => {
     recordVisit().then((res) => {
-      if (res.totalVisits) {
-        setCommunityStats((prev) => ({ ...prev, totalVisits: res.totalVisits }));
-      }
-    });
-
-    fetchCommunityStats().then((data) => {
-      setCommunityStats(data);
+      setCommunityStats({
+        totalVisits: res.totalVisits,
+        todayVisits: res.todayVisits,
+        totalLikes: res.totalLikes,
+        totalComments: res.totalComments,
+        activeReadersCount: res.activeReadersCount,
+      });
     });
   }, []);
 
@@ -209,6 +204,7 @@ export default function App() {
     if (existing) {
       handleOpenReader(existing);
     } else {
+      setPendingPrefillBook({ title: bookTitle, author: bookAuthor });
       setActiveTab('custom');
     }
   };
@@ -354,12 +350,12 @@ export default function App() {
             {/* Live Visitor Counter Pill */}
             <div
               onClick={() => setActiveTab('community')}
-              className="flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-semibold text-emerald-400 cursor-pointer hover:bg-emerald-500/20 transition-all"
+              className="flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-semibold text-emerald-400 cursor-pointer hover:bg-emerald-500/20 active:scale-95 transition-all shadow-sm"
               title={`Shahid's BookPulse has had ${communityStats.totalVisits.toLocaleString()} page visits! Click to view community.`}
             >
-              <Eye className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+              <Eye className="w-3.5 h-3.5 text-emerald-400 animate-pulse shrink-0" />
               <span className="font-bold">{communityStats.totalVisits.toLocaleString()}</span>
-              <span className="hidden lg:inline text-[11px] text-emerald-400/80 font-normal">Visits</span>
+              <span className="text-[11px] text-emerald-400/90 font-normal">Visits</span>
             </div>
 
             {/* Streak Counter Badge */}
@@ -626,6 +622,9 @@ export default function App() {
           <CustomSummaryGenerator
             onSummaryGenerated={handleCustomSummaryGenerated}
             onOpenReader={handleOpenReader}
+            initialTitle={pendingPrefillBook?.title || ''}
+            initialAuthor={pendingPrefillBook?.author || ''}
+            savedCustomSummaries={progress.customCreatedSummaries}
           />
         )}
 
@@ -691,11 +690,20 @@ export default function App() {
 
           <button
             onClick={() => setActiveTab('community')}
-            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
+            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all relative ${
               activeTab === 'community' ? 'text-amber-400 font-bold' : 'text-slate-400 hover:text-white'
             }`}
           >
-            <Users className="w-4 h-4" />
+            <div className="relative">
+              <Users className="w-4 h-4" />
+              {communityStats.totalVisits > 0 && (
+                <span className="absolute -top-1 -right-2 px-1 py-0.2 min-w-3.5 text-center bg-emerald-500 text-slate-950 text-[9px] font-black rounded-full leading-none">
+                  {communityStats.totalVisits > 999
+                    ? `${(communityStats.totalVisits / 1000).toFixed(0)}k`
+                    : communityStats.totalVisits}
+                </span>
+              )}
+            </div>
             <span className="text-[10px]">Community</span>
           </button>
 

@@ -1,7 +1,6 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { GoogleGenAI, Type } from '@google/genai';
 import {
   getCommunityStats,
@@ -11,12 +10,11 @@ import {
   addBookComment,
   toggleCommentLike,
   getRecentComments,
-} from './communityStore.js';
+} from './communityStore';
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const ROOT_DIR = process.cwd();
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -46,7 +44,7 @@ app.get('/api/health', (req, res) => {
 app.post('/api/generate-summary', async (req, res) => {
   try {
     const { title, author, depth = 'detailed' } = req.body;
-    if (!title) {
+    if (!title || !title.trim()) {
       return res.status(400).json({ error: 'Book title is required' });
     }
 
@@ -56,86 +54,130 @@ app.post('/api/generate-summary', async (req, res) => {
       });
     }
 
-    const prompt = `You are a helpful, inspiring reading mentor.
-Generate a motivating, clear, and practical book summary for:
-Title: "${title}"
-Author: "${author || 'Unknown'}"
+    const cleanTitle = title.trim();
+    const cleanAuthor = author ? author.trim() : 'Unknown';
+
+    const prompt = `You are an expert reading mentor and literary researcher.
+Generate a motivating, crystal-clear, and 100% book-specific summary for:
+Title: "${cleanTitle}"
+Author: "${cleanAuthor}"
 Depth requested: "${depth}"
 
-CRITICAL LANGUAGE REQUIREMENT:
+STRICT GROUNDING & ZERO CONTENT MIXING RULES (CRITICAL):
+1. 100% BOOK-SPECIFICITY:
+- Every concept, takeaway, real-life story, quote, and habit MUST be strictly and authentically from "${cleanTitle}" by "${cleanAuthor}".
+- Absolutely NEVER borrow, mix, or blend stories, studies, or examples from other popular books!
+- Specifically:
+  * Do NOT use the British Cycling team / Dave Brailsford unless the book is specifically "Atomic Habits".
+  * Do NOT use Ronald Read the janitor unless the book is specifically "The Psychology of Money".
+  * Do NOT use J.K. Rowling writing in a hotel unless the book is specifically "Deep Work".
+  * Do NOT use Viktor Frankl in a concentration camp unless the book is specifically "Man's Search for Meaning".
+  * Do NOT use Navy SEAL / 40% rule / 100-mile race unless the book is specifically "Can't Hurt Me".
+  * Do NOT use Steve Jobs or generic corporate boardroom stories unless specifically the central subject of this exact book.
+- Use the actual trademark terms, proprietary frameworks, and coined concepts from "${cleanTitle}" (e.g. for Thinking Fast & Slow: System 1 & 2, availability heuristic; for 7 Habits: Circle of Influence, Paradigm Shift; for Start With Why: The Golden Circle; for Zero to One: 0 to 1 vs 1 to n, Definite Optimism; for Grit: Grit Scale, deliberate practice).
+
+2. REAL-LIFE EXAMPLE REQUIREMENTS:
+- Must be an authentic, real-life experiment, historical event, biographical story, or case study ACTUALLY featured in or famous for "${cleanTitle}".
+- title: A specific headline naming the actual person, study, or event (e.g. "Daniel Kahneman's Flight Instructor Feedback Study", "The Wright Brothers vs. Samuel Langley's $50,000 Budget", "Stephen Covey's Subway Carriage Paradigm Shift").
+- story: A detailed, step-by-step narrative describing the real context, dilemma, what happened, and how it proves the core thesis.
+- takeawayLesson: A clear, simple explanation of the practical moral of this exact story.
+
+3. MEMORABLE QUOTE REQUIREMENTS:
+- quote: An authentic, verifiable famous quote genuinely written or spoken by ${cleanAuthor} in "${cleanTitle}".
+- context: The specific chapter, section, or concept in the book where this quote appears.
+
+4. LANGUAGE & SIMPLICITY:
 - Use simple, everyday, friendly English (Grade 6-8 level).
-- Do NOT use fancy, complex, or sophisticated words (avoid words like "transcendental", "dichotomy", "heuristics", "quintessential", "asymmetric leverage", "monastic", etc.).
-- Explain ideas so clearly that anyone, including a beginner or non-native English speaker, can instantly understand and put them into practice today.
+- Explain deep concepts so clearly that anyone, including a beginner or non-native English speaker, can instantly understand and apply them today.
 
-Create an actionable breakdown in JSON format.
-Include:
-1. title: Exact official title
-2. author: Author name
-3. category: Choose one from: "Mindset", "Productivity", "Resilience & Stoicism", "Wealth & Finance", "Leadership", "Habits", "Health & Energy"
-4. readTimeMinutes: estimated reading time (5 to 10 minutes)
-5. hook: A punchy 1-2 sentence hook in plain words explaining why this book matters
-6. coreThesis: Clear explanation of the main lesson in simple everyday words (2 easy-to-read paragraphs)
-7. keyTakeaways: Array of 4 items, each with:
-   - title: Clear, simple concept name
-   - insight: Simple, helpful explanation without jargon
-   - practicalDrill: A practical 1-minute exercise the reader can do today
-8. realLifeExample: A true story or clear example showing how someone used this idea in real life to solve a problem.
-9. dailyMicroHabit: A specific 60-second micro-habit based on the book to start today
-10. memorableQuote: The most famous or helpful quote from the book
-11. visualContextPrompt: A simple, visual description of an image showing the main lesson
-12. actionChecklist: Array of 3 simple, bulleted action steps.`;
+5. CATEGORY:
+- Choose the single best fit from: "Mindset", "Productivity", "Resilience & Stoicism", "Wealth & Mastery", "Leadership", "Habits", "High Performance".`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: { type: Type.STRING },
-            author: { type: Type.STRING },
-            category: { type: Type.STRING },
-            readTimeMinutes: { type: Type.INTEGER },
-            hook: { type: Type.STRING },
-            coreThesis: { type: Type.STRING },
-            keyTakeaways: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  title: { type: Type.STRING },
-                  insight: { type: Type.STRING },
-                  practicalDrill: { type: Type.STRING },
+    let response: any = null;
+    let lastError: any = null;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        response = await ai.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: prompt,
+          config: {
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING },
+                author: { type: Type.STRING },
+                category: { type: Type.STRING },
+                readTimeMinutes: { type: Type.INTEGER },
+                hook: { type: Type.STRING },
+                coreThesis: { type: Type.STRING },
+                keyTakeaways: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      title: { type: Type.STRING },
+                      insight: { type: Type.STRING },
+                      practicalDrill: { type: Type.STRING },
+                    },
+                    required: ['title', 'insight', 'practicalDrill'],
+                  },
                 },
-                required: ['title', 'insight', 'practicalDrill'],
+                realLifeExample: {
+                  type: Type.OBJECT,
+                  properties: {
+                    title: { type: Type.STRING },
+                    story: { type: Type.STRING },
+                    takeawayLesson: { type: Type.STRING },
+                  },
+                  required: ['title', 'story', 'takeawayLesson'],
+                },
+                dailyMicroHabit: { type: Type.STRING },
+                memorableQuote: {
+                  type: Type.OBJECT,
+                  properties: {
+                    quote: { type: Type.STRING },
+                    context: { type: Type.STRING },
+                  },
+                  required: ['quote', 'context'],
+                },
+                visualContextPrompt: { type: Type.STRING },
+                actionChecklist: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                },
               },
-            },
-            realLifeExample: { type: Type.STRING },
-            dailyMicroHabit: { type: Type.STRING },
-            memorableQuote: { type: Type.STRING },
-            visualContextPrompt: { type: Type.STRING },
-            actionChecklist: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
+              required: [
+                'title',
+                'author',
+                'category',
+                'readTimeMinutes',
+                'hook',
+                'coreThesis',
+                'keyTakeaways',
+                'realLifeExample',
+                'dailyMicroHabit',
+                'memorableQuote',
+                'actionChecklist',
+              ],
             },
           },
-          required: [
-            'title',
-            'author',
-            'category',
-            'readTimeMinutes',
-            'hook',
-            'coreThesis',
-            'keyTakeaways',
-            'realLifeExample',
-            'dailyMicroHabit',
-            'memorableQuote',
-            'actionChecklist',
-          ],
-        },
-      },
-    });
+        });
+        if (response && response.text) break;
+      } catch (err: any) {
+        lastError = err;
+        const msg = String(err?.message || '');
+        if (attempt < 2 && (msg.includes('503') || msg.includes('429') || msg.includes('high demand') || msg.includes('UNAVAILABLE'))) {
+          await new Promise((resolve) => setTimeout(resolve, 1200));
+          continue;
+        }
+        throw err;
+      }
+    }
+
+    if (!response || !response.text) {
+      throw lastError || new Error('Empty response from model');
+    }
 
     const parsedData = JSON.parse(response.text || '{}');
     return res.json({ success: true, summary: parsedData });
@@ -422,7 +464,7 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.resolve(__dirname, 'dist');
+    const distPath = path.resolve(ROOT_DIR, 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       res.sendFile(path.resolve(distPath, 'index.html'));
