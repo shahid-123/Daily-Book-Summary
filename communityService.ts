@@ -106,7 +106,9 @@ async function supabaseRequest<T = any>(table: string, init: RequestInit = {}, q
     throw new Error(`Supabase ${response.status}: ${body.slice(0, 500)}`);
   }
   if (response.status === 204) return {} as T;
-  return response.json();
+  const text = await response.text();
+  if (!text.trim()) return {} as T;
+  return JSON.parse(text) as T;
 }
 
 function countFromContentRange(value: string | null): number {
