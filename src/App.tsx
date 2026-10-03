@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import { BookSummary, CommunityOverviewStats, BookCommunityData, ReaderProfile } from './types';
 import { getBookForDate, CURATED_BOOKS } from './data/dailyBooks';
 import {
@@ -23,7 +23,7 @@ import { CommunityHub } from './components/CommunityHub';
 import { ReaderProfileSetup } from './components/ReaderProfileSetup';
 import { MyReadingView } from './components/MyReadingView';
 import { exportSummaryToPdf } from './utils/pdfExport';
-import { recordVisit, fetchCommunityStats, fetchBookCommunityData, getLocalCommunityStats, fetchReaderProfile, syncCompletedBook } from './utils/communityApi';
+import { recordVisit, fetchCommunityStats, fetchBookCommunityData, getLocalCommunityStats, fetchReaderProfile, syncCompletedBook, syncLocalReadingHistory } from './utils/communityApi';
 import {
   BookOpen,
   Sparkles,
@@ -83,7 +83,13 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    fetchReaderProfile().then((profile) => {
+    fetchReaderProfile().then(async (profile) => {
+      if (profile) {
+        // Backfill books completed before cloud persistence was enabled.
+        const localProgress = loadProgress();
+        await syncLocalReadingHistory(localProgress.readHistory);
+      }
+
       setReaderProfile(profile);
       if (profile) {
         setProgress((prev) => {
@@ -304,7 +310,7 @@ export default function App() {
                 </span>
               </div>
               <p className="text-[10px] text-slate-400 hidden sm:block font-medium">
-                Daily Motivation • Personal Reading Journey
+                Daily Motivation â€¢ Personal Reading Journey
               </p>
             </div>
           </div>
@@ -429,7 +435,7 @@ export default function App() {
       </header>
 
       {/* Main Container Content */}
-      <main className="mx-auto max-w-[1600px] w-full flex-1 px-4 sm:px-6 py-6 md:py-8 pb-24 md:pb-12">
+      <main className="mx-auto max-w-[1600px] w-full flex-1 px-4 sm:px-6 py-6 md:py-8 pb-32 md:pb-12">
         {/* TAB 1: DAILY MOTIVATIONAL SUMMARY */}
         {activeTab === 'daily' && (
           <div className="space-y-8 animate-in fade-in duration-300">
@@ -458,7 +464,7 @@ export default function App() {
                       {dailyBook.readTimeMinutes} Min Read
                     </span>
                     {dailyBook.year && (
-                      <span className="text-slate-500">• Published {dailyBook.year}</span>
+                      <span className="text-slate-500">â€¢ Published {dailyBook.year}</span>
                     )}
                     {isDailyBookRead && (
                       <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-0.5 font-semibold text-emerald-400 text-[11px] flex items-center gap-1">
@@ -486,7 +492,7 @@ export default function App() {
                   {/* Micro Habit Teaser */}
                   <div className="flex items-start gap-3 rounded-2xl bg-slate-800/40 border border-slate-700/60 p-4 text-xs sm:text-sm text-slate-300">
                     <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400 font-bold">
-                      🌱
+                      ðŸŒ±
                     </div>
                     <div>
                       <strong className="text-emerald-400 font-semibold block">
@@ -720,85 +726,53 @@ export default function App() {
       </main>
 
       {/* Mobile Bottom Navigation Bar */}
-      <footer className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-slate-800 bg-slate-950/90 backdrop-blur-xl px-2 py-2">
-        <div className="flex items-center justify-around">
-          <button
-            onClick={() => setActiveTab('daily')}
-            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
-              activeTab === 'daily' ? 'text-amber-400 font-bold' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Calendar className="w-4 h-4" />
-            <span className="text-[10px]">Daily</span>
+            {/* Mobile Bottom Navigation Bar */}
+      <footer
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-slate-800 bg-slate-950/95 backdrop-blur-xl px-2 pt-1.5 shadow-2xl"
+        style={{ paddingBottom: 'calc(0.375rem + env(safe-area-inset-bottom))' }}
+      >
+        <div className="mx-auto grid w-full max-w-md grid-cols-3 gap-1">
+          <button onClick={() => setActiveTab('daily')} className={`flex min-h-10 flex-col items-center justify-center gap-0.5 rounded-xl ${activeTab === 'daily' ? 'bg-amber-500/15 text-amber-400 font-bold' : 'text-slate-400'}`}>
+            <Calendar className="w-4 h-4" /><span className="text-[10px] leading-tight">Daily</span>
           </button>
 
-          <button
-            onClick={() => setActiveTab('goal')}
-            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
-              activeTab === 'goal' ? 'text-amber-400 font-bold' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Trophy className="w-4 h-4" />
-            <span className="text-[10px]">Goal</span>
+          <button onClick={() => setActiveTab('goal')} className={`flex min-h-10 flex-col items-center justify-center gap-0.5 rounded-xl ${activeTab === 'goal' ? 'bg-amber-500/15 text-amber-400 font-bold' : 'text-slate-400'}`}>
+            <Trophy className="w-4 h-4" /><span className="text-[10px] leading-tight">Goal</span>
           </button>
 
-          <button
-            onClick={() => setActiveTab('custom')}
-            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
-              activeTab === 'custom' ? 'text-amber-400 font-bold' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Wand2 className="w-4 h-4" />
-            <span className="text-[10px]">Custom</span>
+          <button onClick={() => setActiveTab('custom')} className={`flex min-h-10 flex-col items-center justify-center gap-0.5 rounded-xl ${activeTab === 'custom' ? 'bg-amber-500/15 text-amber-400 font-bold' : 'text-slate-400'}`}>
+            <Wand2 className="w-4 h-4" /><span className="text-[10px] leading-tight">Custom</span>
           </button>
 
-          <button
-            onClick={() => setActiveTab('myreading')}
-            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
-              activeTab === 'myreading' ? 'text-amber-400 font-bold' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <UserRound className="w-4 h-4" />
-            <span className="text-[10px]">My Reading</span>
+          <button onClick={() => setActiveTab('myreading')} className={`flex min-h-10 flex-col items-center justify-center gap-0.5 rounded-xl ${activeTab === 'myreading' ? 'bg-amber-500/15 text-amber-400 font-bold' : 'text-slate-400'}`}>
+            <UserRound className="w-4 h-4" /><span className="text-[10px] leading-tight">My Reading</span>
           </button>
 
-          <button
-            onClick={() => setActiveTab('community')}
-            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all relative ${
-              activeTab === 'community' ? 'text-amber-400 font-bold' : 'text-slate-400 hover:text-white'
-            }`}
-          >
+          <button onClick={() => setActiveTab('community')} className={`relative flex min-h-10 flex-col items-center justify-center gap-0.5 rounded-xl ${activeTab === 'community' ? 'bg-amber-500/15 text-amber-400 font-bold' : 'text-slate-400'}`}>
             <div className="relative">
               <Users className="w-4 h-4" />
               {communityStats.totalVisits > 0 && (
-                <span className="absolute -top-1 -right-2 px-1 py-0.2 min-w-3.5 text-center bg-emerald-500 text-slate-950 text-[9px] font-black rounded-full leading-none">
-                  {communityStats.totalVisits > 999
-                    ? `${(communityStats.totalVisits / 1000).toFixed(0)}k`
-                    : communityStats.totalVisits}
+                <span className="absolute -top-1 -right-2 min-w-3.5 px-1 text-center bg-emerald-500 text-slate-950 text-[9px] font-black rounded-full leading-none">
+                  {communityStats.totalVisits > 999 ? `${(communityStats.totalVisits / 1000).toFixed(0)}k` : communityStats.totalVisits}
                 </span>
               )}
             </div>
-            <span className="text-[10px]">Community</span>
+            <span className="text-[10px] leading-tight">Community</span>
           </button>
 
-          <button
-            onClick={() => setActiveTab('library')}
-            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
-              activeTab === 'library' ? 'text-amber-400 font-bold' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Library className="w-4 h-4" />
-            <span className="text-[10px]">Vault</span>
+          <button onClick={() => setActiveTab('library')} className={`flex min-h-10 flex-col items-center justify-center gap-0.5 rounded-xl ${activeTab === 'library' ? 'bg-amber-500/15 text-amber-400 font-bold' : 'text-slate-400'}`}>
+            <Library className="w-4 h-4" /><span className="text-[10px] leading-tight">Vault</span>
           </button>
         </div>
       </footer>
-
       {/* Reader profile setup: required once before the first summary */}
       {showProfileSetup && (
         <ReaderProfileSetup
           existingProfile={readerProfile}
           required
-          onSaved={(profile) => {
+          onSaved={async (profile) => {
+            // Backfill books completed before the profile was created.
+            await syncLocalReadingHistory(progress.readHistory);
             setReaderProfile(profile);
             setProgress((prev) => { const updated = { ...prev, yearlyGoal: profile.yearlyGoal }; saveProgress(updated); return updated; });
             setShowProfileSetup(false);
@@ -818,3 +792,4 @@ export default function App() {
     </div>
   );
 }
+

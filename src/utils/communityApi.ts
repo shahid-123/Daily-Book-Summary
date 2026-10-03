@@ -1,4 +1,4 @@
-import { BookCommunityData, CommentItem, CommunityOverviewStats, CommentTag, ReaderProfile, ReaderBook } from '../types';
+﻿import { BookCommunityData, CommentItem, CommunityOverviewStats, CommentTag, ReaderProfile, ReaderBook } from '../types';
 
 const USER_ID_KEY = 'pulse_reader_user_id';
 const USER_NAME_KEY = 'pulse_reader_display_name';
@@ -96,6 +96,30 @@ export async function syncCompletedBook(book: { bookId: string; title: string; a
     if (res.ok) return await res.json();
   } catch (err) { console.warn('Failed to sync completed book', err); }
   return { success: false, alreadyRead: false };
+}
+
+export async function syncLocalReadingHistory(history: Array<{
+  bookId: string;
+  title: string;
+  author: string;
+  category: string;
+  readAt?: string;
+}>): Promise<void> {
+  if (!history.length) return;
+
+  // The server completion endpoint is idempotent, so syncing existing
+  // local history again is safe and repairs older browser-only progress.
+  await Promise.all(
+    history.map((book) =>
+      syncCompletedBook({
+        bookId: book.bookId,
+        title: book.title,
+        author: book.author,
+        category: book.category || 'Mindset',
+        minutes: 0,
+      })
+    )
+  );
 }
 
 export function getLocalCommunityStats(): CommunityOverviewStats {
@@ -197,3 +221,4 @@ export async function fetchRecentComments(): Promise<CommentItem[]> {
   } catch (err) { console.warn('Failed to fetch recent comments', err); }
   return [];
 }
+
