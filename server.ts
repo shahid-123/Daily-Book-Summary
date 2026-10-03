@@ -10,7 +10,12 @@ import {
   addBookComment,
   toggleCommentLike,
   getRecentComments,
-} from './communityStore';
+  upsertReaderProfile,
+  getReaderProfile,
+  getReaderSummary,
+  markReaderBookCompleted,
+  cloudPersistenceEnabled,
+} from './communityService';
 
 dotenv.config();
 
@@ -355,9 +360,9 @@ ${JSON.stringify(summary, null, 2)}`;
 });
 
 // Community, Visits, Likes, and Comments Endpoints
-app.get('/api/community/stats', (req, res) => {
+app.get('/api/community/stats', async (req, res) => {
   try {
-    const stats = getCommunityStats();
+    const stats = await getCommunityStats();
     res.json(stats);
   } catch (err: any) {
     console.error('Error fetching community stats:', err);
@@ -365,10 +370,10 @@ app.get('/api/community/stats', (req, res) => {
   }
 });
 
-app.post('/api/community/visit', (req, res) => {
+app.post('/api/community/visit', async (req, res) => {
   try {
-    const { bookId, isNewSession } = req.body;
-    const result = recordVisit(bookId, !!isNewSession);
+    const { bookId, isNewSession, userId } = req.body;
+    const result = await recordVisit(bookId, !!isNewSession, userId);
     res.json(result);
   } catch (err: any) {
     console.error('Error recording visit:', err);
@@ -376,11 +381,11 @@ app.post('/api/community/visit', (req, res) => {
   }
 });
 
-app.get('/api/books/:bookId/community', (req, res) => {
+app.get('/api/books/:bookId/community', async (req, res) => {
   try {
     const { bookId } = req.params;
     const userId = req.query.userId as string | undefined;
-    const data = getBookCommunity(bookId, userId);
+    const data = await getBookCommunity(bookId, userId);
     res.json(data);
   } catch (err: any) {
     console.error('Error fetching book community:', err);
@@ -388,14 +393,14 @@ app.get('/api/books/:bookId/community', (req, res) => {
   }
 });
 
-app.post('/api/books/:bookId/like', (req, res) => {
+app.post('/api/books/:bookId/like', async (req, res) => {
   try {
     const { bookId } = req.params;
     const { userId, bookTitle } = req.body;
     if (!userId) {
       return res.status(400).json({ error: 'User ID is required' });
     }
-    const result = toggleBookLike(bookId, userId, bookTitle);
+    const result = await toggleBookLike(bookId, userId, bookTitle);
     res.json(result);
   } catch (err: any) {
     console.error('Error toggling book like:', err);
@@ -403,20 +408,22 @@ app.post('/api/books/:bookId/like', (req, res) => {
   }
 });
 
-app.post('/api/books/:bookId/comments', (req, res) => {
+app.post('/api/books/:bookId/comments', async (req, res) => {
   try {
     const { bookId } = req.params;
-    const { author, content, rating, tag, userId, bookTitle } = req.body;
+    const { author, content, rating, tag, userId, bookTitle, country, state } = req.body;
     if (!content || !content.trim()) {
       return res.status(400).json({ error: 'Comment content cannot be empty' });
     }
-    const comment = addBookComment(bookId, {
+    const comment = await addBookComment(bookId, {
       author: author || 'Passionate Reader',
       content,
       rating: Number(rating) || 5,
       tag,
       userId: userId || 'anonymous',
       bookTitle,
+      country,
+      state,
     });
     res.json({ success: true, comment });
   } catch (err: any) {
@@ -425,14 +432,14 @@ app.post('/api/books/:bookId/comments', (req, res) => {
   }
 });
 
-app.post('/api/comments/:commentId/like', (req, res) => {
+app.post('/api/comments/:commentId/like', async (req, res) => {
   try {
     const { commentId } = req.params;
     const { userId } = req.body;
     if (!userId) {
       return res.status(400).json({ error: 'User ID is required' });
     }
-    const result = toggleCommentLike(commentId, userId);
+    const result = await toggleCommentLike(commentId, userId);
     res.json(result);
   } catch (err: any) {
     console.error('Error toggling comment like:', err);
@@ -440,15 +447,70 @@ app.post('/api/comments/:commentId/like', (req, res) => {
   }
 });
 
-app.get('/api/community/comments/recent', (req, res) => {
+app.get('/api/community/comments/recent', async (req, res) => {
   try {
     const userId = req.query.userId as string | undefined;
     const limit = Number(req.query.limit) || 25;
-    const comments = getRecentComments(limit, userId);
+    const comments = await getRecentComments(limit, userId);
     res.json({ comments });
   } catch (err: any) {
     console.error('Error fetching recent comments:', err);
     res.status(500).json({ error: 'Failed to fetch comments' });
+  }
+});
+
+// Reader profiles and personal reading journey
+app.get('/api/readers/:readerId', async (req, res) => {
+  try {
+    const profile = await getReaderProfile(req.params.readerId);
+    res.json({ profile, cloudPersistenceEnabled });
+  } catch (err: any) {
+    console.error('Error fetching reader profile:', err);
+    res.status(500).json({ error: 'Failed to fetch reader profile' });
+  }
+});
+
+app.post('/api/readers/:readerId', async (req, res) => {
+  try {
+    const { displayName, country, state, yearlyGoal } = req.body;
+    if (req.params.readerId !== req.body.id) return res.status(400).json({ error: 'Reader ID mismatch' });
+    if (!displayName?.trim() || !country?.trim() || !state?.trim()) return res.status(400).json({ error: 'Name, country and state are required' });
+    const profile = await upsertReaderProfile({
+      id: req.params.readerId,
+      displayName: displayName.trim(),
+      country: country.trim(),
+      state: state.trim(),
+      yearlyGoal: Math.min(1000, Math.max(1, Number(yearlyGoal) || 100)),
+      createdAt: req.body.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    res.json({ success: true, profile });
+  } catch (err: any) {
+    console.error('Error saving reader profile:', err);
+    res.status(500).json({ error: 'Failed to save reader profile' });
+  }
+});
+
+app.get('/api/readers/:readerId/summary', async (req, res) => {
+  try {
+    res.json(await getReaderSummary(req.params.readerId));
+  } catch (err: any) {
+    console.error('Error fetching reader summary:', err);
+    res.status(500).json({ error: 'Failed to fetch reader summary' });
+  }
+});
+
+app.post('/api/readers/:readerId/books', async (req, res) => {
+  try {
+    const { bookId, title, author, category, minutes } = req.body;
+    if (!bookId || !title || !author) return res.status(400).json({ error: 'Book information is required' });
+    const result = await markReaderBookCompleted(req.params.readerId, {
+      bookId, title, author, category: category || 'Mindset', minutes: Number(minutes) || 0,
+    });
+    res.json(result);
+  } catch (err: any) {
+    console.error('Error saving completed book:', err);
+    res.status(500).json({ error: 'Failed to save completed book' });
   }
 });
 

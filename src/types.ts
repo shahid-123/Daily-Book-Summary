@@ -121,6 +121,8 @@ export interface CommentItem {
   bookTitle?: string;
   author: string;
   avatarColor?: string;
+  country?: string;
+  state?: string;
   content: string;
   rating: number; // 1 to 5
   tag?: CommentTag;
@@ -136,6 +138,26 @@ export interface BookCommunityData {
   commentsCount: number;
   userLiked: boolean;
   comments: CommentItem[];
+}
+
+
+export interface ReaderProfile {
+  id: string;
+  displayName: string;
+  country: string;
+  state: string;
+  yearlyGoal: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReaderBook {
+  bookId: string;
+  title: string;
+  author: string;
+  category: string;
+  readAt: string;
+  minutes: number;
 }
 
 export interface CommunityOverviewStats {

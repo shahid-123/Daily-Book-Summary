@@ -117,6 +117,9 @@ export const ReaderInteractions: React.FC<Props> = ({ book, theme, onShare }) =>
       setCommentContent('');
       setRecentActionNotice('Your reflection has been posted! 🌟');
       setTimeout(() => setRecentActionNotice(null), 4000);
+    } else {
+      setRecentActionNotice('We could not save your reflection. Please try again.');
+      setTimeout(() => setRecentActionNotice(null), 4500);
     }
   };
 
@@ -534,7 +537,7 @@ export const ReaderInteractions: React.FC<Props> = ({ book, theme, onShare }) =>
 
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-xs sm:text-sm">{cmt.author}</span>
+                        <span className="font-bold text-xs sm:text-sm">{cmt.author}</span>{(cmt.country || cmt.state) && <span className="text-[10px] text-slate-500 ml-1">• {cmt.country}{cmt.state ? ` · ${cmt.state}` : ""}</span>}
                         <span
                           className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold border ${
                             isLight

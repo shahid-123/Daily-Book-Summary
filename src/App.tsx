@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { BookSummary, CommunityOverviewStats, BookCommunityData } from './types';
+import { BookSummary, CommunityOverviewStats, BookCommunityData, ReaderProfile } from './types';
 import { getBookForDate, CURATED_BOOKS } from './data/dailyBooks';
 import {
   loadProgress,
@@ -20,8 +20,10 @@ import { SneakPeekCard } from './components/SneakPeekCard';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { CommunityHub } from './components/CommunityHub';
+import { ReaderProfileSetup } from './components/ReaderProfileSetup';
+import { MyReadingView } from './components/MyReadingView';
 import { exportSummaryToPdf } from './utils/pdfExport';
-import { recordVisit, fetchCommunityStats, fetchBookCommunityData, getLocalCommunityStats } from './utils/communityApi';
+import { recordVisit, fetchCommunityStats, fetchBookCommunityData, getLocalCommunityStats, fetchReaderProfile, syncCompletedBook } from './utils/communityApi';
 import {
   BookOpen,
   Sparkles,
@@ -47,9 +49,10 @@ import {
   Eye,
   Heart,
   MessageSquare,
+  UserRound,
 } from 'lucide-react';
 
-type ActiveTab = 'daily' | 'reader' | 'goal' | 'custom' | 'recommendations' | 'library' | 'community';
+type ActiveTab = 'daily' | 'reader' | 'goal' | 'custom' | 'recommendations' | 'library' | 'community' | 'myreading';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('daily');
@@ -58,6 +61,9 @@ export default function App() {
   const [offlineCache, setOfflineCache] = useState<Record<string, BookSummary>>(loadOfflineBooks());
   const [activeBookForReader, setActiveBookForReader] = useState<BookSummary | null>(null);
   const [pendingPrefillBook, setPendingPrefillBook] = useState<{ title: string; author: string } | null>(null);
+  const [readerProfile, setReaderProfile] = useState<ReaderProfile | null>(null);
+  const [showProfileSetup, setShowProfileSetup] = useState(false);
+  const [pendingReaderBook, setPendingReaderBook] = useState<BookSummary | null>(null);
 
   // Community and Visitor Stats - starts with local genuine count so it displays instantly on load
   const [communityStats, setCommunityStats] = useState<CommunityOverviewStats>(() => getLocalCommunityStats());
@@ -73,6 +79,19 @@ export default function App() {
         totalComments: res.totalComments,
         activeReadersCount: res.activeReadersCount,
       });
+    });
+  }, []);
+
+  useEffect(() => {
+    fetchReaderProfile().then((profile) => {
+      setReaderProfile(profile);
+      if (profile) {
+        setProgress((prev) => {
+          const updated = { ...prev, yearlyGoal: profile.yearlyGoal };
+          saveProgress(updated);
+          return updated;
+        });
+      }
     });
   }, []);
 
@@ -110,14 +129,32 @@ export default function App() {
     }
   }, [dailyBook?.id]);
 
-  // Handle Mark Book Completed
-  const handleMarkRead = (book: BookSummary) => {
+  // Handle Mark Book Completed + sync the personal reading journey
+  const handleMarkRead = async (book: BookSummary) => {
+    const beforeCount = progress.readBookIds.length;
     const { updatedProgress, newlyUnlocked } = markBookCompleted(book, progress);
     setProgress(updatedProgress);
 
-    if (newlyUnlocked.length > 0) {
+    const justCompleted = updatedProgress.readBookIds.length > beforeCount;
+    if (justCompleted) {
+      if (readerProfile) {
+        await syncCompletedBook({
+          bookId: book.id,
+          title: book.title,
+          author: book.author,
+          category: book.category,
+          minutes: book.readTimeMinutes || 0,
+        });
+      }
       triggerCelebrationConfetti();
     }
+
+    const count = updatedProgress.readBookIds.length;
+    const goal = readerProfile?.yearlyGoal || updatedProgress.yearlyGoal || 100;
+    const milestoneStep = goal <= 10 ? 1 : goal <= 25 ? 5 : goal <= 50 ? 10 : 10;
+    const nextMilestone = count >= goal ? goal : Math.min(goal, Math.ceil(count / milestoneStep) * milestoneStep || milestoneStep);
+
+    return { justCompleted, count, goal, nextMilestone, streak: updatedProgress.currentStreak };
   };
 
   // Toggle Favorite
@@ -170,6 +207,11 @@ export default function App() {
 
   // Open Full Reading Experience
   const handleOpenReader = (book: BookSummary) => {
+    if (!readerProfile) {
+      setPendingReaderBook(book);
+      setShowProfileSetup(true);
+      return;
+    }
     setActiveBookForReader(book);
     setActiveTab('reader');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -262,7 +304,7 @@ export default function App() {
                 </span>
               </div>
               <p className="text-[10px] text-slate-400 hidden sm:block font-medium">
-                Daily Motivation • 100-Book Milestone
+                Daily Motivation • Personal Reading Journey
               </p>
             </div>
           </div>
@@ -290,9 +332,9 @@ export default function App() {
               }`}
             >
               <Trophy className="w-3.5 h-3.5 text-amber-400" />
-              <span>100-Book Goal</span>
+              <span>{readerProfile?.yearlyGoal || progress.yearlyGoal || 100}-Book Goal</span>
               <span className="rounded-full bg-slate-800 px-1.5 py-0.2 text-[10px] text-amber-400 font-bold">
-                {progress.readBookIds.length}/100
+                {progress.readBookIds.length}/{readerProfile?.yearlyGoal || progress.yearlyGoal || 100}
               </span>
             </button>
 
@@ -330,6 +372,18 @@ export default function App() {
             >
               <Library className="w-3.5 h-3.5 text-emerald-400" />
               <span>Vault</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('myreading')}
+              className={`flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 font-medium transition-all ${
+                activeTab === 'myreading'
+                  ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/20'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <UserRound className="w-3.5 h-3.5 text-sky-400" />
+              <span>My Reading</span>
             </button>
 
             <button
@@ -647,7 +701,17 @@ export default function App() {
           />
         )}
 
-        {/* TAB 6: COMMUNITY, LIKES & DISCUSSIONS */}
+        {/* TAB 6: PERSONAL READING JOURNEY */}
+        {activeTab === 'myreading' && (
+          <MyReadingView
+            onSelectBook={(id) => {
+              const book = allAvailableBooks.find((b) => b.id === id);
+              if (book) handleOpenReader(book);
+            }}
+          />
+        )}
+
+        {/* TAB 7: COMMUNITY, LIKES & DISCUSSIONS */}
         {activeTab === 'community' && (
           <CommunityHub
             onOpenBook={(book) => handleOpenReader(book)}
@@ -675,7 +739,7 @@ export default function App() {
             }`}
           >
             <Trophy className="w-4 h-4" />
-            <span className="text-[10px]">100 Goal</span>
+            <span className="text-[10px]">Goal</span>
           </button>
 
           <button
@@ -686,6 +750,16 @@ export default function App() {
           >
             <Wand2 className="w-4 h-4" />
             <span className="text-[10px]">Custom</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('myreading')}
+            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
+              activeTab === 'myreading' ? 'text-amber-400 font-bold' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <UserRound className="w-4 h-4" />
+            <span className="text-[10px]">My Reading</span>
           </button>
 
           <button
@@ -718,6 +792,26 @@ export default function App() {
           </button>
         </div>
       </footer>
+
+      {/* Reader profile setup: required once before the first summary */}
+      {showProfileSetup && (
+        <ReaderProfileSetup
+          existingProfile={readerProfile}
+          required
+          onSaved={(profile) => {
+            setReaderProfile(profile);
+            setProgress((prev) => { const updated = { ...prev, yearlyGoal: profile.yearlyGoal }; saveProgress(updated); return updated; });
+            setShowProfileSetup(false);
+            if (pendingReaderBook) {
+              const book = pendingReaderBook;
+              setPendingReaderBook(null);
+              setActiveBookForReader(book);
+              setActiveTab('reader');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+          }}
+        />
+      )}
 
       {/* Offline Alert Badge */}
       <OfflineIndicator />

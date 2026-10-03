@@ -25,7 +25,7 @@ export const GoalProgressTracker: React.FC<Props> = ({ progress }) => {
   const yearlyGoal = progress.yearlyGoal || 100;
   const percentage = Math.min(100, Math.round((booksReadCount / yearlyGoal) * 100));
 
-  // Calculate day of the year and expected pace for 100 books
+  // Calculate day of the year and expected pace for the reader's target
   const now = new Date();
   const startOfYear = new Date(now.getFullYear(), 0, 1);
   const dayOfYear = Math.floor((now.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24)) + 1;
@@ -55,14 +55,18 @@ export const GoalProgressTracker: React.FC<Props> = ({ progress }) => {
 
   const unlockedSet = new Set(progress.unlockedAchievementIds);
 
-  // Milestone stages toward 100
-  const milestoneMilestones = [
-    { target: 10, label: 'Sparks', icon: '🌱' },
-    { target: 25, label: 'Quarter', icon: '🥉' },
-    { target: 50, label: 'Halfway', icon: '🥈' },
-    { target: 75, label: 'Virtuoso', icon: '⭐' },
-    { target: 100, label: 'Century Legend', icon: '👑' },
-  ];
+  // Milestone stages toward the reader's goal
+  const milestoneMilestones = Array.from(new Set([
+    Math.max(1, Math.ceil(yearlyGoal * 0.1)),
+    Math.max(1, Math.ceil(yearlyGoal * 0.25)),
+    Math.max(1, Math.ceil(yearlyGoal * 0.5)),
+    Math.max(1, Math.ceil(yearlyGoal * 0.75)),
+    yearlyGoal,
+  ])).sort((a, b) => a - b).map((target, i, arr) => ({
+    target,
+    label: target === yearlyGoal ? 'Goal Reached' : i === 0 ? 'First Spark' : i === arr.length - 2 ? 'Final Push' : 'Milestone',
+    icon: target === yearlyGoal ? '👑' : i === 0 ? '🌱' : i === 1 ? '🥉' : i === 2 ? '🥈' : '⭐',
+  }));
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -75,7 +79,7 @@ export const GoalProgressTracker: React.FC<Props> = ({ progress }) => {
           <div className="space-y-4 max-w-xl text-center lg:text-left">
             <div className="inline-flex items-center gap-2 rounded-full bg-amber-500/20 px-3.5 py-1 text-xs font-bold text-amber-400 border border-amber-500/30">
               <Trophy className="w-3.5 h-3.5" />
-              Annual 100-Book Milestone Challenge
+              Personal Reading Goal Challenge
             </div>
 
             <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight font-serif">
@@ -83,7 +87,7 @@ export const GoalProgressTracker: React.FC<Props> = ({ progress }) => {
             </h2>
 
             <p className="text-slate-300 text-sm leading-relaxed">
-              Every summary digested elevates your decision-making and mental models. You are {100 - percentage}% away from joining the elite 100-Book Century Club this year.
+              Every summary digested adds another idea to your life. You are {100 - percentage}% away from reaching your personal reading target this year.
             </p>
 
             <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4 pt-2">
@@ -146,7 +150,7 @@ export const GoalProgressTracker: React.FC<Props> = ({ progress }) => {
               <span className="text-[11px] font-semibold text-amber-400 uppercase tracking-widest">
                 Milestone
               </span>
-              <span className="text-[10px] text-slate-400 mt-0.5">{100 - booksReadCount} left</span>
+              <span className="text-[10px] text-slate-400 mt-0.5">{Math.max(0, yearlyGoal - booksReadCount)} left</span>
             </div>
           </div>
         </div>
@@ -154,8 +158,8 @@ export const GoalProgressTracker: React.FC<Props> = ({ progress }) => {
         {/* Milestone Steps Bar */}
         <div className="mt-8 pt-6 border-t border-slate-800/80">
           <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-            <span>Milestone Ladder to 100</span>
-            <span className="text-amber-400 font-bold">{booksReadCount} / 100 Completed</span>
+            <span>Milestone Ladder to {yearlyGoal}</span>
+            <span className="text-amber-400 font-bold">{booksReadCount} / {yearlyGoal} Completed</span>
           </div>
 
           <div className="grid grid-cols-5 gap-2 sm:gap-3">
@@ -230,10 +234,10 @@ export const GoalProgressTracker: React.FC<Props> = ({ progress }) => {
                 <Calendar className="w-4 h-4 text-sky-400" />
                 Annual Pace Rhythm
               </h3>
-              <span className="text-xs text-sky-400 font-semibold">100 Target</span>
+              <span className="text-xs text-sky-400 font-semibold">{yearlyGoal} Target</span>
             </div>
             <p className="text-xs text-slate-400 mb-6 leading-relaxed">
-              Target cadence: ~8.3 books per month (~2 books weekly). Consistency compounds exponentially over 365 days.
+              Your target is {yearlyGoal} books this year. Consistency matters more than speed — keep building your reading habit.
             </p>
 
             {/* Monthly Bar Visualizer */}

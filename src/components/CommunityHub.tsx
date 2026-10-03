@@ -260,7 +260,7 @@ export const CommunityHub: React.FC<Props> = ({ onOpenBook }) => {
                         </div>
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-sm text-white">{cmt.author}</span>
+                            <span className="font-bold text-sm text-white">{cmt.author}</span>{(cmt.country || cmt.state) && <span className="text-[10px] text-slate-500 ml-1">• {cmt.country}{cmt.state ? ` · ${cmt.state}` : ""}</span>}
                             {cmt.tag && (
                               <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-slate-800 text-slate-300 border border-slate-700">
                                 {cmt.tag}

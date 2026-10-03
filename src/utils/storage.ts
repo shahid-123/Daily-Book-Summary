@@ -2,7 +2,7 @@ import { UserProgressState, ReaderSettings, BookSummary } from '../types';
 import { SYSTEM_ACHIEVEMENTS } from '../data/achievements';
 import confetti from 'canvas-confetti';
 
-const PROGRESS_STORAGE_KEY = 'auraread_user_progress_v1';
+const PROGRESS_STORAGE_KEY = 'bookpulse_user_progress_v2';
 const SETTINGS_STORAGE_KEY = 'auraread_reader_settings_v1';
 const OFFLINE_BOOKS_KEY = 'auraread_offline_books_v1';
 
@@ -17,24 +17,16 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
 };
 
 export const INITIAL_PROGRESS: UserProgressState = {
-  readBookIds: ['atomic-habits'],
-  readHistory: [
-    {
-      bookId: 'atomic-habits',
-      title: 'Atomic Habits',
-      author: 'James Clear',
-      category: 'Habits',
-      readAt: new Date(Date.now() - 86400000).toISOString(),
-    }
-  ],
-  favoriteBookIds: ['atomic-habits'],
-  savedOfflineIds: ['atomic-habits'],
-  currentStreak: 2,
-  bestStreak: 2,
-  lastReadDate: new Date().toISOString().split('T')[0],
+  readBookIds: [],
+  readHistory: [],
+  favoriteBookIds: [],
+  savedOfflineIds: [],
+  currentStreak: 0,
+  bestStreak: 0,
+  lastReadDate: null,
   yearlyGoal: 100,
-  totalMinutesRead: 15,
-  unlockedAchievementIds: ['first-book'],
+  totalMinutesRead: 0,
+  unlockedAchievementIds: [],
   customCreatedSummaries: [],
 };
 
@@ -125,6 +117,9 @@ export function markBookCompleted(
   currentProgress: UserProgressState
 ): { updatedProgress: UserProgressState; newlyUnlocked: string[] } {
   const isAlreadyRead = currentProgress.readBookIds.includes(book.id);
+  if (isAlreadyRead) {
+    return { updatedProgress: currentProgress, newlyUnlocked: [] };
+  }
   const now = new Date();
   const todayStr = now.toISOString().split('T')[0];
 

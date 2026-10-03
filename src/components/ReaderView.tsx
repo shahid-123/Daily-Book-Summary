@@ -45,7 +45,7 @@ interface Props {
   isRead: boolean;
   isFavorite: boolean;
   isSavedOffline: boolean;
-  onMarkRead: (book: BookSummary) => void;
+  onMarkRead: (book: BookSummary) => Promise<{ justCompleted: boolean; count: number; goal: number; nextMilestone: number; streak: number }>;
   onToggleFavorite: (bookId: string) => void;
   onToggleSaveOffline: (book: BookSummary) => void;
   onBack?: () => void;
@@ -80,6 +80,7 @@ export const ReaderView: React.FC<Props> = ({
   const [currentSummary, setCurrentSummary] = useState<BookSummary>(book);
   const [isTranslating, setIsTranslating] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [completionCelebration, setCompletionCelebration] = useState<Awaited<ReturnType<Props['onMarkRead']>> | null>(null);
 
   // Speech Reader hook
   const {
@@ -877,7 +878,11 @@ export const ReaderView: React.FC<Props> = ({
             {/* 6. Milestone Progress Celebration & Action Buttons */}
             <div className={`rounded-2xl border p-4 sm:p-5 shadow-md flex flex-col sm:flex-row items-center justify-between gap-3 ${currentTheme.card}`}>
               <button
-                onClick={() => onMarkRead(currentSummary)}
+                onClick={async () => {
+                  if (isRead) return;
+                  const result = await onMarkRead(currentSummary);
+                  if (result.justCompleted) setCompletionCelebration(result);
+                }}
                 className={`w-full sm:w-auto flex items-center justify-center gap-2.5 rounded-xl px-5 py-3 text-xs sm:text-sm font-bold shadow-lg transition-all active:scale-95 ${
                   isRead
                     ? 'bg-emerald-600 text-white shadow-emerald-600/30 hover:bg-emerald-500'
@@ -913,6 +918,27 @@ export const ReaderView: React.FC<Props> = ({
               theme={theme}
               onShare={handleShare}
             />
+
+            {completionCelebration && (
+              <div className="fixed inset-0 z-[90] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="w-full max-w-lg rounded-3xl border border-amber-500/40 bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 p-7 sm:p-9 text-center shadow-2xl">
+                  <div className="text-5xl mb-3">🎉</div>
+                  <div className="text-xs font-black uppercase tracking-[0.25em] text-amber-400">Book completed</div>
+                  <h2 className="text-2xl sm:text-3xl font-black font-serif text-white mt-2">Fantastic work!</h2>
+                  <p className="text-slate-300 mt-2">You completed <strong className="text-amber-300">{currentSummary.title}</strong>.</p>
+                  <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
+                    <div className="text-3xl font-black text-white">{completionCelebration.count} / {completionCelebration.goal}</div>
+                    <div className="text-xs text-amber-400 uppercase tracking-widest mt-1">Books completed</div>
+                    <p className="text-sm text-slate-300 mt-4">🔥 {completionCelebration.streak} day reading streak</p>
+                  </div>
+                  <p className="text-sm text-emerald-300 mt-5 font-semibold">{completionCelebration.count >= completionCelebration.nextMilestone ? '🏆 Milestone reached! Keep the momentum going.' : `🎯 Only ${completionCelebration.nextMilestone - completionCelebration.count} more ${completionCelebration.nextMilestone - completionCelebration.count === 1 ? 'book' : 'books'} to reach your next milestone.`}</p>
+                  <div className="flex flex-col sm:flex-row gap-3 mt-7">
+                    <button onClick={() => setCompletionCelebration(null)} className="flex-1 rounded-xl bg-amber-500 px-4 py-3 font-black text-slate-950 hover:bg-amber-400">📖 Keep Reading</button>
+                    <button onClick={() => setCompletionCelebration(null)} className="flex-1 rounded-xl border border-slate-700 px-4 py-3 font-bold text-white hover:bg-slate-800">Continue Here</button>
+                  </div>
+                </div>
+              </div>
+            )}
 
           </div>
         </div>
